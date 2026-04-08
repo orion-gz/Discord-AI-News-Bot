@@ -35,7 +35,12 @@ export const SOURCE_EMOJI: Record<string, string> = {
   'The Gradient': '📐',
   'Ahead of AI': '🚀',
   'Reddit r/artificial': '🔴',
+  'Reddit r/LocalLLaMA': '🦙',
+  'Reddit r/singularity': '🌐',
+  'Reddit r/ChatGPT': '💬',
   'GitHub Trending': '🐙',
+  'LessWrong': '🧪',
+  'fast.ai': '⚡',
 };
 
 export const CATEGORY_LABEL: Record<string, string> = {

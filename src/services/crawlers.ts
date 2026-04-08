@@ -91,29 +91,31 @@ async function crawlArXiv(): Promise<CrawlerResult> {
   }
 }
 
-async function crawlReddit(): Promise<CrawlerResult> {
-  const source = 'Reddit r/MachineLearning';
+const REDDIT_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  'Accept': 'application/rss+xml, application/xml, text/xml',
+};
+
+// Hot 기반 크롤링 — 시간 필터 없이 인기 게시물 상위 N개
+async function crawlRedditHot(subreddit: string, limit = 5): Promise<CrawlerResult> {
+  const source = `Reddit r/${subreddit}`;
   try {
-    // Cloud IPs are blocked by Reddit's JSON API — use RSS instead
-    const response = await axios.get('https://www.reddit.com/r/MachineLearning/new/.rss', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'application/rss+xml, application/xml, text/xml',
-      },
-      timeout: 10000,
-    });
+    const response = await axios.get(
+      `https://www.reddit.com/r/${subreddit}/hot/.rss`,
+      { headers: REDDIT_HEADERS, timeout: 10000 },
+    );
     const feed = await rssParser.parseString(response.data as string);
     const items: NewsItem[] = (feed.items || [])
-      .map((item) => ({
+      .slice(0, limit)
+      .map((item, i) => ({
         title: item.title || 'No title',
-        url: item.link || 'https://www.reddit.com/r/MachineLearning/',
+        url: item.link || `https://www.reddit.com/r/${subreddit}/`,
         source,
         content: (item.contentSnippet || '').substring(0, 300),
-        publishedAt: item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : new Date(),
+        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
         category: 'discussion' as const,
-        score: 0,
-      }))
-      .filter((item) => isWithinLastHour(item.publishedAt));
+        score: limit - i, // 순위 기반 가중치 (1위가 가장 높음)
+      }));
 
     return { source, items };
   } catch (error) {
@@ -180,12 +182,19 @@ async function crawlGitHubTrending(): Promise<CrawlerResult> {
   }
 }
 
+interface RSSOptions {
+  headers?: Record<string, string>;
+  noTimeFilter?: boolean; // hot/top 피드처럼 시간 필터가 의미없는 경우
+  limit?: number;
+}
+
 async function crawlRSS(
   url: string,
   sourceName: string,
   category: NewsItem['category'],
-  headers?: Record<string, string>,
+  options: RSSOptions = {},
 ): Promise<CrawlerResult> {
+  const { headers, noTimeFilter = false, limit } = options;
   try {
     let feed: Awaited<ReturnType<typeof rssParser.parseURL>>;
     if (headers) {
@@ -194,20 +203,25 @@ async function crawlRSS(
     } else {
       feed = await rssParser.parseURL(url);
     }
-    const items: NewsItem[] = (feed.items || [])
-      .filter((item) => {
+
+    let feedItems = feed.items || [];
+    if (!noTimeFilter) {
+      feedItems = feedItems.filter((item) => {
         const pubDate = item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : null;
         return pubDate && isWithinLastHour(pubDate);
-      })
-      .map((item) => ({
-        title: item.title || 'No title',
-        url: item.link || url,
-        source: sourceName,
-        content: (item.contentSnippet || item.content || '').substring(0, 300),
-        publishedAt: item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : new Date(),
-        category,
-        score: 0,
-      }));
+      });
+    }
+    if (limit) feedItems = feedItems.slice(0, limit);
+
+    const items: NewsItem[] = feedItems.map((item) => ({
+      title: item.title || 'No title',
+      url: item.link || url,
+      source: sourceName,
+      content: (item.contentSnippet || item.content || '').substring(0, 300),
+      publishedAt: item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : new Date(),
+      category,
+      score: 0,
+    }));
 
     return { source: sourceName, items };
   } catch (error) {
@@ -219,52 +233,54 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
   console.log('🔍 뉴스 크롤링 시작...');
 
   const results = await Promise.allSettled([
+    // ── 뉴스 ──────────────────────────────────────────────
     crawlHackerNews(),
-    crawlArXiv(),
-    crawlReddit(),
     crawlRSS('https://www.technologyreview.com/feed/', 'MIT Technology Review', 'news'),
     crawlRSS('https://venturebeat.com/category/ai/feed/', 'VentureBeat AI', 'news'),
     crawlRSS('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml', 'The Verge AI', 'news'),
-    crawlRSS('https://news.hada.io/rss', 'GeekNews', 'discussion', {
-      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/rss+xml, application/xml, text/xml',
-      'Referer': 'https://news.hada.io/',
-    }),
-    crawlRSS('https://lobste.rs/t/ai.rss', 'Lobste.rs', 'discussion'),
-    crawlDevTo(),
-    // 논문/연구
-    crawlRSS('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
-    crawlRSS('https://www.alignmentforum.org/feed.xml', 'AI Alignment Forum', 'paper'),
-    // AI 기업 블로그
     crawlRSS('https://huggingface.co/blog/feed.xml', 'Hugging Face Blog', 'news'),
     crawlRSS('https://openai.com/blog/rss.xml', 'OpenAI Blog', 'news'),
     crawlRSS('https://deepmind.google/blog/rss.xml', 'Google DeepMind', 'news'),
     crawlRSS('https://www.anthropic.com/rss.xml', 'Anthropic Blog', 'news'),
-    // 뉴스레터/매거진
     crawlRSS('https://www.deeplearning.ai/the-batch/feed/', 'The Batch', 'news'),
     crawlRSS('https://thegradient.pub/rss/', 'The Gradient', 'news'),
     crawlRSS('https://magazine.sebastianraschka.com/feed', 'Ahead of AI', 'news'),
-    // 커뮤니티 추가
-    crawlRSS('https://www.reddit.com/r/artificial/new/.rss', 'Reddit r/artificial', 'discussion', {
-      'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-      'Accept': 'application/rss+xml, application/xml, text/xml',
-    }),
-    // GitHub Trending (AI 관련 레포)
+    crawlRSS('https://www.fast.ai/index.xml', 'fast.ai', 'news'),
+    crawlDevTo(),
     crawlGitHubTrending(),
+    // ── 논문 ──────────────────────────────────────────────
+    crawlArXiv(),
+    crawlRSS('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
+    crawlRSS('https://www.alignmentforum.org/feed.xml', 'AI Alignment Forum', 'paper'),
+    crawlRSS('https://www.lesswrong.com/feed.xml', 'LessWrong', 'paper'),
+    // ── 커뮤니티 (Reddit hot) ─────────────────────────────
+    crawlRedditHot('MachineLearning', 5),
+    crawlRedditHot('LocalLLaMA', 5),       // LLM 로컬 실행, 매우 활발
+    crawlRedditHot('singularity', 5),      // AI 뉴스 인기 허브
+    crawlRedditHot('artificial', 4),
+    crawlRedditHot('ChatGPT', 3),
+    // ── 커뮤니티 (기타) ───────────────────────────────────
+    crawlRSS('https://news.hada.io/rss', 'GeekNews', 'discussion', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml',
+        'Referer': 'https://news.hada.io/',
+      },
+    }),
+    crawlRSS('https://lobste.rs/t/ai.rss', 'Lobste.rs', 'discussion'),
   ]);
 
   const allItems: NewsItem[] = [];
-  const seen = new Set<string>();
+  const seenUrls = new Set<string>();
 
   for (const result of results) {
     if (result.status === 'fulfilled') {
       const { source, items, error } = result.value;
       if (error) console.warn(`⚠️  ${source} 크롤링 오류: ${error}`);
       for (const item of items) {
-        if (!seen.has(item.url)) {
-          seen.add(item.url);
-          allItems.push(item);
-        }
+        if (seenUrls.has(item.url)) continue;
+        seenUrls.add(item.url);
+        allItems.push(item);
       }
     }
   }

@@ -3,6 +3,7 @@ import { Client, TextChannel } from 'discord.js';
 import { crawlAllSources } from './crawlers';
 import { summarizeItems } from './summarizer';
 import { formatNewsEmbeds } from './formatter';
+import { filterPosted, markPosted } from './cache';
 
 export function startNewsScheduler(client: Client): void {
   const channelId = process.env.DISCORD_CHANNEL_ID;
@@ -16,7 +17,9 @@ export function startNewsScheduler(client: Client): void {
 
   cron.schedule(schedule, async () => {
     try {
-      const items = await crawlAllSources();
+      const crawled = await crawlAllSources();
+      const items = filterPosted(crawled);
+
       if (items.length === 0) {
         console.log('ℹ️  새로운 AI 뉴스가 없습니다. 스킵합니다.');
         return;
@@ -35,6 +38,8 @@ export function startNewsScheduler(client: Client): void {
       for (let i = 0; i < embeds.length; i += 10) {
         await channel.send({ embeds: embeds.slice(i, i + 10) });
       }
+
+      markPosted(items);
 
       const now = new Date().toLocaleString('ko-KR', { timeZone: timezone });
       console.log(`✅ [${now}] AI 뉴스 ${items.length}건 전송 완료`);
