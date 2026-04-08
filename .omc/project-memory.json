@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775628108098,
+  "projectRoot": "/Users/orion-gz/Desktop/Project/Discord/AINewsBot",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": "npm run start",
+    "scripts": {
+      "start": "ts-node src/index.ts",
+      "build": "tsc",
+      "deploy": "ts-node src/deploy-commands.ts"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1775628108088,
+      "keyFiles": [
+        "deploy-commands.ts",
+        "index.ts",
+        "types.ts"
+      ]
+    },
+    "src/services": {
+      "path": "src/services",
+      "purpose": "Business logic services",
+      "fileCount": 4,
+      "lastAccessed": 1775628108089,
+      "keyFiles": [
+        "crawlers.ts",
+        "formatter.ts",
+        "scheduler.ts"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

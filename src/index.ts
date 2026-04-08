@@ -17,7 +17,7 @@ const client = new Client({
 const commands = new Collection<string, Command>();
 commands.set(ainewsCommand.data.name, ainewsCommand);
 
-client.once('ready', (readyClient) => {
+client.once('clientReady', (readyClient) => {
   console.log(`✅ AI 뉴스 봇이 ${readyClient.user.tag}으로 로그인되었습니다!`);
   startNewsScheduler(readyClient);
 });

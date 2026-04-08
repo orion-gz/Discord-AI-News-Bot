@@ -94,27 +94,26 @@ async function crawlArXiv(): Promise<CrawlerResult> {
 async function crawlReddit(): Promise<CrawlerResult> {
   const source = 'Reddit r/MachineLearning';
   try {
-    const response = await axios.get('https://www.reddit.com/r/MachineLearning/new.json', {
-      params: { limit: 15 },
-      headers: { 'User-Agent': 'AINewsBot/1.0 (Discord Bot)' },
+    // Cloud IPs are blocked by Reddit's JSON API — use RSS instead
+    const response = await axios.get('https://www.reddit.com/r/MachineLearning/new/.rss', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'application/rss+xml, application/xml, text/xml',
+      },
       timeout: 10000,
     });
-
-    const posts = response.data?.data?.children || [];
-    const items: NewsItem[] = posts
-      .map((post: any) => {
-        const d = post.data;
-        return {
-          title: d.title,
-          url: `https://reddit.com${d.permalink}`,
-          source,
-          content: d.selftext?.substring(0, 300) || '',
-          publishedAt: new Date(d.created_utc * 1000),
-          category: 'discussion' as const,
-          score: d.score || 0,
-        };
-      })
-      .filter((item: NewsItem) => isWithinLastHour(item.publishedAt));
+    const feed = await rssParser.parseString(response.data as string);
+    const items: NewsItem[] = (feed.items || [])
+      .map((item) => ({
+        title: item.title || 'No title',
+        url: item.link || 'https://www.reddit.com/r/MachineLearning/',
+        source,
+        content: (item.contentSnippet || '').substring(0, 300),
+        publishedAt: item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : new Date(),
+        category: 'discussion' as const,
+        score: 0,
+      }))
+      .filter((item) => isWithinLastHour(item.publishedAt));
 
     return { source, items };
   } catch (error) {
@@ -149,9 +148,20 @@ async function crawlDevTo(): Promise<CrawlerResult> {
   }
 }
 
-async function crawlRSS(url: string, sourceName: string, category: NewsItem['category']): Promise<CrawlerResult> {
+async function crawlRSS(
+  url: string,
+  sourceName: string,
+  category: NewsItem['category'],
+  headers?: Record<string, string>,
+): Promise<CrawlerResult> {
   try {
-    const feed = await rssParser.parseURL(url);
+    let feed: Awaited<ReturnType<typeof rssParser.parseURL>>;
+    if (headers) {
+      const response = await axios.get(url, { headers, timeout: 10000 });
+      feed = await rssParser.parseString(response.data as string);
+    } else {
+      feed = await rssParser.parseURL(url);
+    }
     const items: NewsItem[] = (feed.items || [])
       .filter((item) => {
         const pubDate = item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : null;
@@ -183,7 +193,11 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     crawlRSS('https://www.technologyreview.com/feed/', 'MIT Technology Review', 'news'),
     crawlRSS('https://venturebeat.com/category/ai/feed/', 'VentureBeat AI', 'news'),
     crawlRSS('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml', 'The Verge AI', 'news'),
-    crawlRSS('https://news.hada.io/rss', 'GeekNews', 'discussion'),
+    crawlRSS('https://news.hada.io/rss', 'GeekNews', 'discussion', {
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/rss+xml, application/xml, text/xml',
+      'Referer': 'https://news.hada.io/',
+    }),
     crawlRSS('https://lobste.rs/t/ai.rss', 'Lobste.rs', 'discussion'),
     crawlDevTo(),
   ]);
