@@ -1,0 +1,25 @@
+{
+  "name": "discord-ai-news-bot",
+  "version": "1.0.0",
+  "description": "Discord용 AI 뉴스 봇 - 매 시간 AI 뉴스/논문/커뮤니티 글을 요약해서 전송",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "deploy": "ts-node src/deploy-commands.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "axios": "^1.6.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3",
+    "rss-parser": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.11",
+"ts-node": "^10.9.1",
+    "typescript": "^5.3.0"
+  }
+}
