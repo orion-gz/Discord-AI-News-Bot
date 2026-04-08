@@ -148,6 +148,38 @@ async function crawlDevTo(): Promise<CrawlerResult> {
   }
 }
 
+async function crawlGitHubTrending(): Promise<CrawlerResult> {
+  const source = 'GitHub Trending';
+  const AI_KEYWORDS = ['ai', 'llm', 'gpt', 'machine-learning', 'deep-learning', 'neural', 'diffusion', 'transformer', 'rag', 'agent'];
+  try {
+    const response = await axios.get('https://ghapi.huchen.dev/repositories', {
+      params: { since: 'daily' },
+      headers: { 'User-Agent': 'AINewsBot/1.0 (Discord Bot)' },
+      timeout: 10000,
+    });
+
+    const items: NewsItem[] = (response.data as any[])
+      .filter((repo) => {
+        const text = `${repo.name} ${repo.description || ''}`.toLowerCase();
+        return AI_KEYWORDS.some((kw) => text.includes(kw));
+      })
+      .slice(0, 5)
+      .map((repo) => ({
+        title: `⭐ ${repo.stars_today || '?'} today — ${repo.author}/${repo.name}`,
+        url: `https://github.com/${repo.author}/${repo.name}`,
+        source,
+        content: repo.description?.substring(0, 300) || '',
+        publishedAt: new Date(),
+        category: 'news' as const,
+        score: parseInt(repo.stars_today) || 0,
+      }));
+
+    return { source, items };
+  } catch (error) {
+    return { source, items: [], error: String(error) };
+  }
+}
+
 async function crawlRSS(
   url: string,
   sourceName: string,
@@ -200,6 +232,25 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     }),
     crawlRSS('https://lobste.rs/t/ai.rss', 'Lobste.rs', 'discussion'),
     crawlDevTo(),
+    // 논문/연구
+    crawlRSS('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
+    crawlRSS('https://www.alignmentforum.org/feed.xml', 'AI Alignment Forum', 'paper'),
+    // AI 기업 블로그
+    crawlRSS('https://huggingface.co/blog/feed.xml', 'Hugging Face Blog', 'news'),
+    crawlRSS('https://openai.com/blog/rss.xml', 'OpenAI Blog', 'news'),
+    crawlRSS('https://deepmind.google/blog/rss.xml', 'Google DeepMind', 'news'),
+    crawlRSS('https://www.anthropic.com/rss.xml', 'Anthropic Blog', 'news'),
+    // 뉴스레터/매거진
+    crawlRSS('https://www.deeplearning.ai/the-batch/feed/', 'The Batch', 'news'),
+    crawlRSS('https://thegradient.pub/rss/', 'The Gradient', 'news'),
+    crawlRSS('https://magazine.sebastianraschka.com/feed', 'Ahead of AI', 'news'),
+    // 커뮤니티 추가
+    crawlRSS('https://www.reddit.com/r/artificial/new/.rss', 'Reddit r/artificial', 'discussion', {
+      'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Accept': 'application/rss+xml, application/xml, text/xml',
+    }),
+    // GitHub Trending (AI 관련 레포)
+    crawlGitHubTrending(),
   ]);
 
   const allItems: NewsItem[] = [];

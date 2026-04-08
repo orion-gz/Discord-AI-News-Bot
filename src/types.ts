@@ -25,6 +25,17 @@ export const SOURCE_EMOJI: Record<string, string> = {
   'GeekNews': '🟢',
   'Lobste.rs': '🦞',
   'Dev.to': '🖥️',
+  'Papers with Code': '📝',
+  'AI Alignment Forum': '🔬',
+  'Hugging Face Blog': '🤗',
+  'OpenAI Blog': '🧠',
+  'Google DeepMind': '🔷',
+  'Anthropic Blog': '🔶',
+  'The Batch': '📬',
+  'The Gradient': '📐',
+  'Ahead of AI': '🚀',
+  'Reddit r/artificial': '🔴',
+  'GitHub Trending': '🐙',
 };
 
 export const CATEGORY_LABEL: Record<string, string> = {
