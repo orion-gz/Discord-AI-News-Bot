@@ -27,13 +27,24 @@ function truncate(text: string, max: number): string {
 /** 마크다운 링크 안에 쓸 수 있도록 URL을 정규화 */
 function safeUrl(url: string | undefined): string | null {
   if (!url) return null;
+  // 줄바꿈·공백 제거
+  const cleaned = url.replace(/[\r\n\s]/g, '');
+  if (!/^https?:\/\/.+/.test(cleaned)) return null;
   try {
-    const parsed = new URL(url);
-    // 괄호는 마크다운 링크 파서를 망가뜨리므로 퍼센트 인코딩
-    return parsed.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+    const parsed = new URL(cleaned);
+    // 괄호·공백은 마크다운 링크 파서를 망가뜨리므로 인코딩
+    return parsed.href
+      .replace(/\(/g, '%28')
+      .replace(/\)/g, '%29')
+      .replace(/ /g, '%20');
   } catch {
-    return null; // 파싱 불가 URL은 링크 없이 표시
+    return null;
   }
+}
+
+/** embed 하나의 총 글자수 합산 (Discord 상한: 6000) */
+function embedCharCount(title: string, description: string): number {
+  return title.length + description.length;
 }
 
 /** 아이템을 한 줄씩 추가하면서 description 한도(4096자)를 초과하면 중단 */
@@ -92,11 +103,19 @@ function buildCategoryEmbed(category: string, items: NewsItem[]): EmbedBuilder[]
       LIMIT.TITLE,
     );
 
+    const description = buildDescription(lineGroups);
+
+    // 6000자 상한 초과 시 description을 추가로 자름
+    const MAX_TOTAL = 6000;
+    const safeDesc = embedCharCount(pageLabel, description) > MAX_TOTAL
+      ? truncate(description, MAX_TOTAL - pageLabel.length - 1)
+      : description;
+
     embeds.push(
       new EmbedBuilder()
         .setColor(color)
-        .setTitle(pageLabel)
-        .setDescription(buildDescription(lineGroups)),
+        .setTitle(pageLabel || '\u200b')        // 빈 문자열 방지
+        .setDescription(safeDesc || '\u200b'),  // 빈 문자열 방지
     );
   }
 
