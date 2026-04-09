@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { crawlAllSources } from '../services/crawlers';
 import { summarizeItems } from '../services/summarizer';
-import { formatNewsEmbeds } from '../services/formatter';
+import { formatNewsEmbeds, batchEmbeds } from '../services/formatter';
 
 export const data = new SlashCommandBuilder()
   .setName('ainews')
@@ -21,21 +21,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const summarized = await summarizeItems(items);
     const embeds = formatNewsEmbeds(summarized);
 
-    // Dump embed JSON for debugging, then send
-    const embedJsons = embeds.map((e, i) => {
-      const j = e.toJSON();
-      const titleLen = (j.title ?? '').length;
-      const descLen  = (j.description ?? '').length;
-      console.log(`[embed #${i}] title(${titleLen}) desc(${descLen}): ${j.title?.substring(0, 60)}`);
-      return j;
-    });
-
-    // Discord allows max 10 embeds per message
-    await interaction.editReply({ embeds: embedJsons.slice(0, 10) });
-
-    // Send remaining embeds as follow-ups if any
-    for (let i = 10; i < embedJsons.length; i += 10) {
-      await interaction.followUp({ embeds: embedJsons.slice(i, i + 10) });
+    // 합산 6000자 + 10개 제한을 지키며 배치 전송
+    const batches = batchEmbeds(embeds);
+    await interaction.editReply({ embeds: batches[0] });
+    for (let i = 1; i < batches.length; i++) {
+      await interaction.followUp({ embeds: batches[i] });
     }
   } catch (error: unknown) {
     const raw = (error as any)?.rawError;

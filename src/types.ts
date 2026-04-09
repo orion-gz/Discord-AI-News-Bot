@@ -44,7 +44,7 @@ export const SOURCE_EMOJI: Record<string, string> = {
 };
 
 export const CATEGORY_LABEL: Record<string, string> = {
-  news: '📰 AI 뉴스',
-  paper: '📄 논문',
-  discussion: '💬 커뮤니티',
+  news: 'AI 뉴스',
+  paper: '논문',
+  discussion: '커뮤니티',
 };

@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { Client, TextChannel } from 'discord.js';
 import { crawlAllSources } from './crawlers';
 import { summarizeItems } from './summarizer';
-import { formatNewsEmbeds } from './formatter';
+import { formatNewsEmbeds, batchEmbeds } from './formatter';
 import { filterPosted, markPosted } from './cache';
 
 export function startNewsScheduler(client: Client): void {
@@ -34,9 +34,9 @@ export function startNewsScheduler(client: Client): void {
         return;
       }
 
-      // Send embeds in batches of 10 (Discord limit)
-      for (let i = 0; i < embeds.length; i += 10) {
-        await channel.send({ embeds: embeds.slice(i, i + 10) });
+      // 합산 6000자 + 10개 제한을 지키며 배치 전송
+      for (const batch of batchEmbeds(embeds)) {
+        await channel.send({ embeds: batch });
       }
 
       markPosted(items);

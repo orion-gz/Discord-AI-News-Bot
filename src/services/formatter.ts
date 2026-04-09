@@ -122,6 +122,35 @@ function buildCategoryEmbed(category: string, items: NewsItem[]): EmbedBuilder[]
   return embeds;
 }
 
+/**
+ * Discord 한 메시지의 모든 embed 합산 6000자 / 10개 제한을 지키며 배치로 나눔.
+ * scheduler와 ainews 커맨드 모두 이 함수를 통해 전송해야 함.
+ */
+export function batchEmbeds(embeds: EmbedBuilder[]): EmbedBuilder[][] {
+  const MAX_CHARS = 6000;
+  const MAX_PER_MSG = 10;
+  const batches: EmbedBuilder[][] = [];
+  let current: EmbedBuilder[] = [];
+  let currentChars = 0;
+
+  for (const embed of embeds) {
+    const json = embed.toJSON();
+    const size = (json.title?.length ?? 0) + (json.description?.length ?? 0);
+
+    if (current.length >= MAX_PER_MSG || (current.length > 0 && currentChars + size > MAX_CHARS)) {
+      batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+
+    current.push(embed);
+    currentChars += size;
+  }
+
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
 export function formatNewsEmbeds(items: NewsItem[]): EmbedBuilder[] {
   const tz  = process.env.TZ || 'Asia/Seoul';
   const now = new Date().toLocaleString('ko-KR', { timeZone: tz });
