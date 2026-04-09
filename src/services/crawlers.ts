@@ -152,33 +152,66 @@ async function crawlDevTo(): Promise<CrawlerResult> {
 
 async function crawlGitHubTrending(): Promise<CrawlerResult> {
   const source = 'GitHub Trending';
-  const AI_KEYWORDS = ['ai', 'llm', 'gpt', 'machine-learning', 'deep-learning', 'neural', 'diffusion', 'transformer', 'rag', 'agent'];
   try {
-    const response = await axios.get('https://ghapi.huchen.dev/repositories', {
-      params: { since: 'daily' },
-      headers: { 'User-Agent': 'AINewsBot/1.0 (Discord Bot)' },
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const response = await axios.get('https://api.github.com/search/repositories', {
+      params: {
+        q: `topic:machine-learning topic:artificial-intelligence created:>${since}`,
+        sort: 'stars',
+        order: 'desc',
+        per_page: 5,
+      },
+      headers: {
+        'User-Agent': 'AINewsBot/1.0',
+        'Accept': 'application/vnd.github+json',
+      },
       timeout: 10000,
     });
 
-    const items: NewsItem[] = (response.data as any[])
-      .filter((repo) => {
-        const text = `${repo.name} ${repo.description || ''}`.toLowerCase();
-        return AI_KEYWORDS.some((kw) => text.includes(kw));
-      })
-      .slice(0, 5)
-      .map((repo) => ({
-        title: `⭐ ${repo.stars_today || '?'} today — ${repo.author}/${repo.name}`,
-        url: `https://github.com/${repo.author}/${repo.name}`,
-        source,
-        content: repo.description?.substring(0, 300) || '',
-        publishedAt: new Date(),
-        category: 'news' as const,
-        score: parseInt(repo.stars_today) || 0,
-      }));
+    const items: NewsItem[] = (response.data.items as any[]).map((repo) => ({
+      title: `${repo.full_name} — ⭐ ${repo.stargazers_count}`,
+      url: repo.html_url,
+      source,
+      content: repo.description?.substring(0, 300) || '',
+      publishedAt: new Date(repo.created_at),
+      category: 'news' as const,
+      score: repo.stargazers_count || 0,
+    }));
 
     return { source, items };
   } catch (error) {
     return { source, items: [], error: String(error) };
+  }
+}
+
+/** XML에 이스케이프 안 된 & 가 있는 피드 전용 파서 */
+async function crawlRSSWithXmlFix(
+  url: string,
+  sourceName: string,
+  category: NewsItem['category'],
+): Promise<CrawlerResult> {
+  try {
+    const response = await axios.get(url, { timeout: 10000 });
+    // 엔티티 참조가 아닌 & 를 &amp; 로 치환
+    const sanitized = (response.data as string).replace(/&(?![a-zA-Z#][a-zA-Z0-9]*;)/g, '&amp;');
+    const feed = await rssParser.parseString(sanitized);
+    const items: NewsItem[] = (feed.items || [])
+      .filter((item) => {
+        const pubDate = item.pubDate ? new Date(item.pubDate) : item.isoDate ? new Date(item.isoDate) : null;
+        return pubDate && isWithinLastHour(pubDate);
+      })
+      .map((item) => ({
+        title: item.title || 'No title',
+        url: item.link || url,
+        source: sourceName,
+        content: (item.contentSnippet || item.content || '').substring(0, 300),
+        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+        category,
+        score: 0,
+      }));
+    return { source: sourceName, items };
+  } catch (error) {
+    return { source: sourceName, items: [], error: String(error) };
   }
 }
 
@@ -241,8 +274,6 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     crawlRSS('https://huggingface.co/blog/feed.xml', 'Hugging Face Blog', 'news'),
     crawlRSS('https://openai.com/blog/rss.xml', 'OpenAI Blog', 'news'),
     crawlRSS('https://deepmind.google/blog/rss.xml', 'Google DeepMind', 'news'),
-    crawlRSS('https://www.anthropic.com/rss.xml', 'Anthropic Blog', 'news'),
-    crawlRSS('https://www.deeplearning.ai/the-batch/feed/', 'The Batch', 'news'),
     crawlRSS('https://thegradient.pub/rss/', 'The Gradient', 'news'),
     crawlRSS('https://magazine.sebastianraschka.com/feed', 'Ahead of AI', 'news'),
     crawlRSS('https://www.fast.ai/index.xml', 'fast.ai', 'news'),
@@ -250,7 +281,7 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     crawlGitHubTrending(),
     // ── 논문 ──────────────────────────────────────────────
     crawlArXiv(),
-    crawlRSS('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
+    crawlRSSWithXmlFix('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
     crawlRSS('https://www.alignmentforum.org/feed.xml', 'AI Alignment Forum', 'paper'),
     crawlRSS('https://www.lesswrong.com/feed.xml', 'LessWrong', 'paper'),
     // ── 커뮤니티 (Reddit hot) ─────────────────────────────
@@ -260,13 +291,6 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     crawlRedditHot('artificial', 4),
     crawlRedditHot('ChatGPT', 3),
     // ── 커뮤니티 (기타) ───────────────────────────────────
-    crawlRSS('https://news.hada.io/rss', 'GeekNews', 'discussion', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml',
-        'Referer': 'https://news.hada.io/',
-      },
-    }),
     crawlRSS('https://lobste.rs/t/ai.rss', 'Lobste.rs', 'discussion'),
   ]);
 
