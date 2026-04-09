@@ -2,6 +2,7 @@ import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { crawlAllSources } from '../services/crawlers';
 import { summarizeItems } from '../services/summarizer';
 import { formatNewsEmbeds, batchEmbeds } from '../services/formatter';
+import { filterPosted, markPosted } from '../services/cache';
 
 export const data = new SlashCommandBuilder()
   .setName('ainews')
@@ -11,10 +12,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    const items = await crawlAllSources();
+    const crawled = await crawlAllSources();
+    const items = filterPosted(crawled);
 
     if (items.length === 0) {
-      await interaction.editReply('현재 새로운 AI 뉴스가 없습니다. 잠시 후 다시 시도해주세요.');
+      await interaction.editReply('현재 새로운 AI 뉴스가 없습니다. 이미 모든 최신 뉴스를 전송했거나 새 소식이 없습니다.');
       return;
     }
 
@@ -27,6 +29,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     for (let i = 1; i < batches.length; i++) {
       await interaction.followUp({ embeds: batches[i] });
     }
+
+    markPosted(items);
   } catch (error: unknown) {
     const raw = (error as any)?.rawError;
     console.error('ainews 오류 full:', JSON.stringify(raw ?? error, null, 2));
