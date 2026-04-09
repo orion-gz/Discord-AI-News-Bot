@@ -14,9 +14,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   try {
     const crawled = await crawlAllSources();
     const items = filterPosted(crawled);
+    console.log(`📊 수집 ${crawled.length}개 → 캐시 제외 ${crawled.length - items.length}개 → 신규 ${items.length}개`);
 
     if (items.length === 0) {
-      await interaction.editReply('현재 새로운 AI 뉴스가 없습니다. 이미 모든 최신 뉴스를 전송했거나 새 소식이 없습니다.');
+      await interaction.editReply(`현재 새로운 AI 뉴스가 없습니다. (수집 ${crawled.length}개 중 전부 이미 전송됨)`);
       return;
     }
 

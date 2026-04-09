@@ -315,6 +315,6 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     return b.publishedAt.getTime() - a.publishedAt.getTime();
   });
 
-  console.log(`✅ 총 ${allItems.length}개 뉴스 항목 수집`);
+  console.log(`✅ 총 ${allItems.length}개 뉴스 항목 수집 (중복 제거 후)`);
   return allItems;
 }

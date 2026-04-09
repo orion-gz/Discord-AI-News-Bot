@@ -19,6 +19,7 @@ export function startNewsScheduler(client: Client): void {
     try {
       const crawled = await crawlAllSources();
       const items = filterPosted(crawled);
+      console.log(`📊 수집 ${crawled.length}개 → 캐시 제외 ${crawled.length - items.length}개 → 신규 ${items.length}개`);
 
       if (items.length === 0) {
         console.log('ℹ️  새로운 AI 뉴스가 없습니다. 스킵합니다.');
