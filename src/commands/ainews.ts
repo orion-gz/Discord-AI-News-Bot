@@ -28,8 +28,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     for (let i = 10; i < embeds.length; i += 10) {
       await interaction.followUp({ embeds: embeds.slice(i, i + 10) });
     }
-  } catch (error) {
-    console.error('ainews 명령어 오류:', error);
-    await interaction.editReply('뉴스를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+  } catch (error: unknown) {
+    const detail = (error as any)?.rawError ? JSON.stringify((error as any).rawError, null, 2) : String(error);
+    console.error('ainews 명령어 오류 상세:\n', detail);
+    try {
+      await interaction.editReply('뉴스를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } catch { /* deferred reply already timed out */ }
   }
 }

@@ -24,6 +24,18 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.substring(0, max - 1) + '…';
 }
 
+/** 마크다운 링크 안에 쓸 수 있도록 URL을 정규화 */
+function safeUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    // 괄호는 마크다운 링크 파서를 망가뜨리므로 퍼센트 인코딩
+    return parsed.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+  } catch {
+    return null; // 파싱 불가 URL은 링크 없이 표시
+  }
+}
+
 /** 아이템을 한 줄씩 추가하면서 description 한도(4096자)를 초과하면 중단 */
 function buildDescription(lineGroups: string[][]): string {
   const result: string[] = [];
@@ -65,7 +77,8 @@ function buildCategoryEmbed(category: string, items: NewsItem[]): EmbedBuilder[]
       const score     = item.score ? ` · ⬆️ ${item.score}` : '';
       const meta      = `${emoji} **${item.source}** · ${relativeTime(item.publishedAt)}${score}`;
 
-      const group = [`**${globalIdx}.** [${title}](${item.url})`];
+      const url   = safeUrl(item.url);
+      const group = [url ? `**${globalIdx}.** [${title}](${url})` : `**${globalIdx}.** ${title}`];
       if (item.summary) group.push(`> ${truncate(item.summary, 150)}`);
       group.push(meta);
       if (i < pageItems.length - 1) group.push('');
