@@ -13,8 +13,28 @@ const CATEGORY_ICON: Record<string, string> = {
   discussion: '💬',
 };
 
+// Discord embed limits
+const LIMIT = {
+  TITLE:       256,
+  DESCRIPTION: 4096,
+  FOOTER:      2048,
+} as const;
+
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.substring(0, max - 1) + '…';
+}
+
+/** 아이템을 한 줄씩 추가하면서 description 한도(4096자)를 초과하면 중단 */
+function buildDescription(lineGroups: string[][]): string {
+  const result: string[] = [];
+  let total = 0;
+  for (const group of lineGroups) {
+    const block = group.join('\n');
+    if (total + block.length + 1 > LIMIT.DESCRIPTION) break;
+    result.push(block);
+    total += block.length + 1;
+  }
+  return result.join('\n') || '(표시할 항목이 없습니다)';
 }
 
 function relativeTime(date: Date): string {
@@ -34,34 +54,36 @@ function buildCategoryEmbed(category: string, items: NewsItem[]): EmbedBuilder[]
   const embeds: EmbedBuilder[] = [];
 
   // Split into pages of MAX_ITEMS_PER_EMBED
-  for (let page = 0; page < Math.ceil(items.length / MAX_ITEMS_PER_EMBED); page++) {
+  const totalPages = Math.ceil(items.length / MAX_ITEMS_PER_EMBED);
+  for (let page = 0; page < totalPages; page++) {
     const pageItems = items.slice(page * MAX_ITEMS_PER_EMBED, (page + 1) * MAX_ITEMS_PER_EMBED);
-    const lines: string[] = [];
 
-    pageItems.forEach((item, i) => {
+    const lineGroups: string[][] = pageItems.map((item, i) => {
       const globalIdx = page * MAX_ITEMS_PER_EMBED + i + 1;
       const emoji     = SOURCE_EMOJI[item.source] || '📎';
-      const title     = truncate(item.title, 85);
+      const title     = truncate(item.title, 80);
       const score     = item.score ? ` · ⬆️ ${item.score}` : '';
       const meta      = `${emoji} **${item.source}** · ${relativeTime(item.publishedAt)}${score}`;
 
-      lines.push(`**${globalIdx}.** [${title}](${item.url})`);
-      if (item.summary) {
-        lines.push(`> ${truncate(item.summary, 200)}`);
-      }
-      lines.push(meta);
-      if (i < pageItems.length - 1) lines.push('');
+      const group = [`**${globalIdx}.** [${title}](${item.url})`];
+      if (item.summary) group.push(`> ${truncate(item.summary, 150)}`);
+      group.push(meta);
+      if (i < pageItems.length - 1) group.push('');
+      return group;
     });
 
-    const pageLabel = Math.ceil(items.length / MAX_ITEMS_PER_EMBED) > 1
-      ? `${icon} ${label} — ${items.length}건 (${page + 1}/${Math.ceil(items.length / MAX_ITEMS_PER_EMBED)})`
-      : `${icon} ${label} — ${items.length}건`;
+    const pageLabel = truncate(
+      totalPages > 1
+        ? `${icon} ${label} — ${items.length}건 (${page + 1}/${totalPages})`
+        : `${icon} ${label} — ${items.length}건`,
+      LIMIT.TITLE,
+    );
 
     embeds.push(
       new EmbedBuilder()
         .setColor(color)
         .setTitle(pageLabel)
-        .setDescription(lines.join('\n')),
+        .setDescription(buildDescription(lineGroups)),
     );
   }
 
