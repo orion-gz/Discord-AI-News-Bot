@@ -1,4 +1,4 @@
-import { Client, Collection, GatewayIntentBits, Interaction } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Interaction, MessageFlags } from 'discord.js';
 import * as dotenv from 'dotenv';
 import * as ainewsCommand from './commands/ainews';
 import { startNewsScheduler } from './services/scheduler';
@@ -31,13 +31,17 @@ client.on('interactionCreate', async (interaction: Interaction) => {
   try {
     await command.execute(interaction);
   } catch (error) {
+    // 10062 = Unknown Interaction (이미 만료되었거나 다른 인스턴스가 처리한 경우)
+    if ((error as any)?.code === 10062) return;
     console.error('커맨드 실행 오류:', error);
     const errorMessage = '명령어 실행 중 오류가 발생했습니다.';
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: errorMessage, ephemeral: true });
-    } else {
-      await interaction.reply({ content: errorMessage, ephemeral: true });
-    }
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      } else {
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      }
+    } catch { /* interaction already expired */ }
   }
 });
 

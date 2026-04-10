@@ -283,7 +283,7 @@ export async function crawlAllSources(): Promise<NewsItem[]> {
     crawlArXiv(),
     crawlRSSWithXmlFix('https://paperswithcode.com/rss.xml', 'Papers with Code', 'paper'),
     crawlRSS('https://www.alignmentforum.org/feed.xml', 'AI Alignment Forum', 'paper'),
-    crawlRSS('https://www.lesswrong.com/feed.xml', 'LessWrong', 'paper'),
+    crawlRSS('https://www.lesswrong.com/feed.xml', 'LessWrong', 'discussion'),
     // ── 커뮤니티 (Reddit hot) ─────────────────────────────
     crawlRedditHot('MachineLearning', 5),
     crawlRedditHot('LocalLLaMA', 5),       // LLM 로컬 실행, 매우 활발
